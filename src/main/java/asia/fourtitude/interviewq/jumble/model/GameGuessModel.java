@@ -64,4 +64,9 @@ public class GameGuessModel {
         return sb.toString();
     }
 
+    public GameGuessModel(String id, Date createdAt, GameState gameState) {
+        this.id = id;
+        this.createdAt = createdAt;
+        this.gameState = gameState;
+    }
 }

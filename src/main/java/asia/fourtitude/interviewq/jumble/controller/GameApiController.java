@@ -1,6 +1,6 @@
 package asia.fourtitude.interviewq.jumble.controller;
 
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
@@ -37,6 +37,12 @@ public class GameApiController {
     private static final Logger LOG = LoggerFactory.getLogger(GameApiController.class);
 
     private final JumbleEngine jumbleEngine;
+
+    protected static final String MSG_NEW_GAME = "Created new game.";
+    protected static final String MSG_GUESS_CORRECT = "Guessed correctly.";
+    protected static final String MSG_GUESS_CORRECT_ALL = "All words guessed.";
+    protected static final String MSG_GUESS_INCORRECT = "Guessed incorrectly.";
+    protected static final String MSG_GUESS_ALREADY = "Guessed already.";
 
     /*
      * In-memory database/repository for all the game boards/states.
@@ -81,13 +87,24 @@ public class GameApiController {
          */
         GameGuessOutput output = new GameGuessOutput();
 
-        GameState gameState = this.jumbleEngine.createGameState(6, 3);
+        GameState gameState = this.jumbleEngine.createGameState(5, 3);
 
         /*
          * TODO:
          * a) Store the game state to the repository, with unique game board ID
          * b) Return the game board/state (GameGuessOutput) to caller
          */
+
+        String uuid = UUID.randomUUID().toString();
+        output.setResult(MSG_NEW_GAME);
+        output.setId(uuid);
+        output.setOriginalWord(gameState.getOriginal());
+        output.setScrambleWord(gameState.getScramble());
+        output.setTotalWords(gameState.getSubWords().size());
+        output.setRemainingWords(gameState.getSubWords().size() - gameState.getGuessedWords().size());
+        output.setGuessedWords(gameState.getGuessedWords());
+
+        gameBoards.put(uuid, new GameGuessModel(uuid, new Date(), gameState));
 
         return new ResponseEntity<>(output, HttpStatus.OK);
     }
@@ -221,8 +238,69 @@ public class GameApiController {
          * d) Update the game board (and game state) in repository
          * e) Return the updated game board/state (GameGuessOutput) to caller
          */
+        if(input.getId() == null || input.getId().isEmpty()){
+            output.setResult("Invalid Game ID.");
+            return new ResponseEntity<>(output, HttpStatus.NOT_FOUND);
+        }
+
+        if(!gameBoards.containsKey(input.getId())){
+            LOG.debug("Game board/state not found, id: {}", input.getId());
+            output.setResult("Game board/state not found.");
+            return new ResponseEntity<>(output, HttpStatus.NOT_FOUND);
+        }
+
+        GameGuessModel gameGuessModel = gameBoards.get(input.getId());
+        GameState gameState = gameGuessModel.getGameState();
+        int totalWords = gameState.getSubWords().size();
+        List<String> guessedWords = gameState.getGuessedWords();
+
+        //Default output
+        output.setId(input.getId());
+        output.setOriginalWord(gameState.getOriginal());
+        output.setScrambleWord(gameState.getScramble());
+        output.setGuessWord(input.getWord());
+        output.setTotalWords(totalWords);
+        output.setRemainingWords(totalWords - guessedWords.size());
+        output.setGuessedWords(guessedWords);
+
+        if(!gameState.getSubWords().containsKey(input.getWord())){
+            output.setResult(MSG_GUESS_INCORRECT);
+            return new ResponseEntity<>(output, HttpStatus.OK);
+        }
+
+        if(guessedWords.contains(input.getWord())){
+            output.setResult(MSG_GUESS_ALREADY);
+            return new ResponseEntity<>(output, HttpStatus.OK);
+        }
+
+        //Guess correct below --
+        gameState.updateGuessWord(input.getWord());
+
+        //Update db
+        gameGuessModel.setModifiedAt(new Date());
+        gameBoards.put(gameGuessModel.getId(), gameGuessModel);
+
+        //Update success output
+        guessedWords = gameState.getGuessedWords();
+        output.setRemainingWords(totalWords - guessedWords.size());
+        output.setGuessedWords(guessedWords);
+
+        //Check If End Game
+        if(output.getRemainingWords() == 0){
+            output.setResult(MSG_GUESS_CORRECT_ALL);
+        }else{
+            output.setResult(MSG_GUESS_CORRECT);
+        }
 
         return new ResponseEntity<>(output, HttpStatus.OK);
+    }
+
+    protected List<String> readValue(String gameId){
+        if(this.gameBoards.containsKey(gameId)){
+            Map<String, Boolean> subWordsMap = this.gameBoards.get(gameId).getGameState().getSubWords();
+            return new ArrayList<>(subWordsMap.keySet());
+        }
+        return new ArrayList<>();
     }
 
 }

@@ -1,9 +1,20 @@
 package asia.fourtitude.interviewq.jumble.core;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ResourceLoader;
+
 import java.io.*;
+import java.nio.file.Files;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class JumbleEngine {
+
+    private static final Logger LOG = LoggerFactory.getLogger(JumbleEngine.class);
+
+    private static final String fileName = "words.txt";
+    private static Collection<String> globalWords;
 
     /**
      * From the input `word`, produces/generates a copy which has the same
@@ -23,7 +34,23 @@ public class JumbleEngine {
          * Refer to the method's Javadoc (above) and implement accordingly.
          * Must pass the corresponding unit tests.
          */
-        throw new UnsupportedOperationException("to be implemented");
+        String result;
+        do{
+            char[] letters = word.toCharArray();
+            int wordLength = letters.length;
+            char[] resultArray = new char[wordLength];
+            Random random = new Random();
+            for(int i = 0; i < letters.length; i++){
+                int randomIndex;
+                do{
+                    randomIndex = random.nextInt(wordLength);
+                }while(resultArray[randomIndex] != '\0');
+                resultArray[randomIndex] = letters[i];
+            }
+            result = String.valueOf(resultArray);
+        }while(word.equals(result));
+
+        return result;
     }
 
     /**
@@ -48,7 +75,16 @@ public class JumbleEngine {
          * Refer to the method's Javadoc (above) and implement accordingly.
          * Must pass the corresponding unit tests.
          */
-        throw new UnsupportedOperationException("to be implemented");
+        Collection<String> words = new ArrayList<>(readWord());
+        words.removeIf(w -> {
+            if(w.length() <= 1){
+                return true;
+            }
+            String reverseWord = new StringBuilder(w).reverse().toString();
+            return !reverseWord.equals(w);
+        });
+
+        return words;
     }
 
     /**
@@ -69,7 +105,20 @@ public class JumbleEngine {
          * Refer to the method's Javadoc (above) and implement accordingly.
          * Must pass the corresponding unit tests.
          */
-        throw new UnsupportedOperationException("to be implemented");
+        Collection<String> words = new ArrayList<>(readWord());
+        if(length != null){
+            words = words.stream().
+                    filter((word) -> word.length() == length).
+                    collect(Collectors.toList());
+
+        }
+
+        if(words.isEmpty()){
+            return null;
+        }
+
+        List<String> wordList = new ArrayList<>(words);
+        return wordList.get(new Random().nextInt(words.size()));
     }
 
     /**
@@ -89,7 +138,8 @@ public class JumbleEngine {
          * Refer to the method's Javadoc (above) and implement accordingly.
          * Must pass the corresponding unit tests.
          */
-        throw new UnsupportedOperationException("to be implemented");
+        Collection<String> words = new ArrayList<>(readWord());
+        return words.stream().anyMatch(w -> w.equalsIgnoreCase(word));
     }
 
     /**
@@ -113,7 +163,26 @@ public class JumbleEngine {
          * Refer to the method's Javadoc (above) and implement accordingly.
          * Must pass the corresponding unit tests.
          */
-        throw new UnsupportedOperationException("to be implemented");
+
+        if(prefix == null || prefix.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Collection<String> words = new ArrayList<>(readWord());
+
+        return words.stream().filter(w -> {
+
+            if(w.length() < prefix.length()){
+                return false;
+            }
+
+            for (int i = 0; i < prefix.length(); i++) {
+                if (Character.toLowerCase(w.charAt(i)) != Character.toLowerCase(prefix.charAt(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }).collect(Collectors.toList());
     }
 
     /**
@@ -145,7 +214,48 @@ public class JumbleEngine {
          * Refer to the method's Javadoc (above) and implement accordingly.
          * Must pass the corresponding unit tests.
          */
-        throw new UnsupportedOperationException("to be implemented");
+        boolean startCharCriteria = false, endCharCriteria = false, lengthCriteria = false;
+
+        if(startChar != null && startChar.toString().matches("^[a-zA-Z]")) {
+            startCharCriteria = true;
+        }
+
+        if(endChar != null && endChar.toString().matches("^[a-zA-Z]")) {
+            endCharCriteria = true;
+        }
+
+        if(length != null && length >= 1) {
+            lengthCriteria = true;
+        }
+
+        if(!startCharCriteria && !endCharCriteria && !lengthCriteria){
+            LOG.debug(new StringBuilder()
+                    .append("startCharCriteria: " + startCharCriteria)
+                    .append("\nstartChar: " + startChar)
+                    .append("\nendCharCriteria: " + endCharCriteria)
+                    .append("\nendChar: " + endChar)
+                    .append("\nlengthCriteria: " + lengthCriteria)
+                    .append("\nlength: " + length).toString());
+            return Collections.emptyList();
+        }
+
+        Collection<String> words = new ArrayList<>(readWord());
+
+        if(lengthCriteria){
+            words.removeIf(w -> w.length() != length);
+        }
+
+        if(startCharCriteria){
+            words.removeIf(w ->
+                    Character.toLowerCase(w.charAt(0))!= Character.toLowerCase(startChar));
+        }
+
+        if(endCharCriteria){
+            words.removeIf(w ->
+                    Character.toLowerCase(w.charAt(w.length() - 1)) != Character.toLowerCase(endChar));
+        }
+
+        return words;
     }
 
     /**
@@ -178,7 +288,56 @@ public class JumbleEngine {
          * Refer to the method's Javadoc (above) and implement accordingly.
          * Must pass the corresponding unit tests.
          */
-        throw new UnsupportedOperationException("to be implemented");
+        if(minLength == null){
+            minLength = 3;
+        }
+
+        if(word == null || minLength == 0 || word.length() < minLength){
+            return Collections.emptyList();
+        }
+
+        HashMap<Character, Integer> wordMap = new HashMap<>();
+        for(char c: word.toCharArray()){
+            if(wordMap.containsKey(c)){
+                wordMap.compute(c, (k, wordCount) -> wordCount + 1);
+            }else{
+                wordMap.put(c, 1);
+            }
+        }
+
+        Collection<String> words = new ArrayList<>(readWord());
+        Collection<String> subWords = new ArrayList<>();
+
+        Integer finalMinLength = minLength;
+        words.removeIf(w -> w.equals(word));
+        words.removeIf(w -> w.length() < finalMinLength);
+
+        words.parallelStream().forEach(w -> {
+            HashMap<Character, Integer> wordMapTemp = new HashMap<>(wordMap);
+            boolean wordFlag = true;
+
+            for (int i = 0; i < w.length(); i++) {
+                if (!wordMapTemp.containsKey(w.charAt(i))) {
+                    wordFlag = false;
+                    break;
+                }
+
+                int wordCount = wordMapTemp.get(w.charAt(i));
+
+                if (--wordCount < 0) {
+                    wordFlag = false;
+                    break;
+                }
+
+                wordMapTemp.put(w.charAt(i), wordCount);
+            }
+
+            if(wordFlag){
+                subWords.add(w);
+            }
+        });
+
+        return subWords;
     }
 
     /**
@@ -218,6 +377,24 @@ public class JumbleEngine {
             subWords.put(subWord, Boolean.FALSE);
         }
         return new GameState(original, scramble, subWords);
+    }
+
+    /**
+     * Read file words.txt
+     * @return word
+     */
+    private Collection<String> readWord(){
+        if(globalWords == null || globalWords.isEmpty()) {
+            try {
+                ClassLoader classLoader = ResourceLoader.class.getClassLoader();
+                File file = new File(classLoader.getResource(fileName).getFile());
+                globalWords = Files.readAllLines(file.toPath());
+            } catch (IOException e) {
+                System.out.println("File not found: " + fileName);
+                e.printStackTrace();
+            }
+        }
+        return globalWords;
     }
 
 }
